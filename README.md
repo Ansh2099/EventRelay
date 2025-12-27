@@ -633,11 +633,6 @@ EventRelay/
 ├── PRD.md                                      # Product requirements
 └── README.md                                   # This file
 ```
-
-## License
-
-[Specify your license here]
-
 ## Author
 
 Anshpreet Singh
