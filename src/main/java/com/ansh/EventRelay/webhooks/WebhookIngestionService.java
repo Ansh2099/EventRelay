@@ -17,7 +17,6 @@ public class WebhookIngestionService {
 	@Transactional
 	public IngestionResult ingest(String source, String externalEventId, String rawPayloadJson) {
 		WebhookEvent event = new WebhookEvent(source, externalEventId, rawPayloadJson, WebhookEventState.RECEIVED);
-		// Let DataIntegrityViolationException propagate to controller for idempotency handling
 		WebhookEvent saved = webhookEventRepository.saveAndFlush(event);
 		return IngestionResult.accepted(saved.getId(), false);
 	}

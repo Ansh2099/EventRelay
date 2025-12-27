@@ -64,7 +64,6 @@ public class WebhookIngestionController {
 				source, externalEventId, e.getMessage());
 			return ResponseEntity.ok().build();
 		} catch (Exception e) {
-			// Check if the root cause is DataIntegrityViolationException
 			Throwable cause = e.getCause();
 			while (cause != null) {
 				if (cause instanceof DataIntegrityViolationException) {
@@ -74,7 +73,6 @@ public class WebhookIngestionController {
 				}
 				cause = cause.getCause();
 			}
-			// If not a duplicate key violation, re-throw
 			throw e;
 		}
 	}

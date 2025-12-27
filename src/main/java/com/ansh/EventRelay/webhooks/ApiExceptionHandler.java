@@ -35,12 +35,10 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ResponseEntity<Void> dataIntegrityViolation(DataIntegrityViolationException ex) {
-		// For idempotency: if duplicate key violation, return 200 OK
 		String message = ex.getMessage();
 		if (message != null && message.contains("uk_webhook_events_source_external_event_id")) {
 			return ResponseEntity.status(HttpStatus.OK).build();
 		}
-		// For other integrity violations, return 500
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 	}
 
