@@ -1,6 +1,6 @@
 # EventRelay
 
-A reliable webhook ingestion and processing platform that guarantees idempotent processing, controlled retries, and full observability under failure conditions.
+A reliable webhook ingestion and processing platform that provides database-backed deduplication, controlled retries, and clear visibility into event state and failures.
 
 ## Table of Contents
 
@@ -28,9 +28,9 @@ EventRelay solves the common problem of unreliable webhook processing in modern 
 Naive webhook handlers process events synchronously and fail under retries, leading to duplicate side effects, inconsistent state, and silent data corruption.
 
 EventRelay provides a production-ready solution that:
-- ✅ Guarantees **exactly-once processing** per webhook event
+- ✅ Guarantees **exactly-once ingestion (deduplication)** per webhook event ID
 - ✅ Safely handles retries without duplicate side effects
-- ✅ Provides clear visibility into event lifecycle and failures
+- ✅ Provides clear visibility into event lifecycle and failures (via query APIs + logs)
 - ✅ Remains resilient to worker crashes and partial system failures
 
 ## Architecture
@@ -137,11 +137,11 @@ EventRelay uses **asynchronous processing** to:
 2. **Idempotent Acceptance**
    - When a duplicate event arrives, the database throws `DataIntegrityViolationException`
    - The controller catches this exception and returns HTTP 200 OK
-   - The duplicate event is acknowledged but not reprocessed
+   - The duplicate event is acknowledged but not stored again
 
 3. **State-Based Processing Guard**
    - Events can only be processed if in `RECEIVED` or `FAILED` states
-   - Once an event reaches `SUCCESS`, it's never processed again
+   - Once an event reaches `SUCCESS`, it's not eligible for processing again
    - Database row locking (`FOR UPDATE SKIP LOCKED`) prevents concurrent processing
 
 4. **Transaction Safety**
@@ -155,8 +155,10 @@ EventRelay uses **asynchronous processing** to:
 3. Provider retries (same external_event_id)
 4. Database constraint violation → HTTP 200 OK (idempotent)
 5. Worker processes original event → SUCCESS
-6. Future retries are ignored (already SUCCESS)
+6. Future retries are ignored for storage (already stored)
 ```
+
+**Note on "exactly-once"**: The system guarantees exactly-once *ingestion* (deduplication) via a database constraint. Processing semantics depend on your business logic handler; handlers should be implemented idempotently to prevent duplicate side effects in the presence of failures.
 
 ### 3. Retry and Failure Handling
 
@@ -185,9 +187,9 @@ EventRelay implements **exponential backoff** with the following schedule:
    - `next_retry_at` is cleared (no automatic retries)
 
 3. **Worker Crashes**
-   - Events in `PROCESSING` state remain locked
-   - On restart, events can be manually reset to `RECEIVED` for reprocessing
-   - Database row locking prevents duplicate processing
+   - Database row locks are scoped to the transaction; if a worker crashes, locks are released
+   - An event may remain in `PROCESSING` state until an operator intervenes
+   - Recovery (e.g., resetting stuck events back to `RECEIVED`) is currently a manual/operational action (e.g., via direct DB update)
 
 **State Machine:**
 
@@ -422,7 +424,7 @@ FOR UPDATE SKIP LOCKED
 
 ### Environment Variables
 
-All database and webhook secret configurations can be overridden via environment variables:
+Database configuration is wired for environment variable overrides by default. Webhook secrets can be set via properties (e.g., `eventrelay.webhook.secrets.paypal=...`); the repo currently includes an environment-variable example for the `test` source.
 
 ```bash
 export EVENT_RELAY_DB_URL=jdbc:postgresql://localhost:5432/event_relay
