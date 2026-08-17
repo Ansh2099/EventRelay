@@ -1,0 +1,190 @@
+{
+	"info": {
+		"_postman_id": "a2c5b9e0-3f11-4e78-9b88-eventrelaydemo",
+		"name": "EventRelay Demo Collection",
+		"description": "Pre-configured Postman Collection for demonstrating EventRelay Webhook Ingestion & Idempotency",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Moment 1 - Happy Path (evt_001)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Webhook-Signature",
+						"value": "+B7AcKzJ1aZvl3xtu5v1O5yK1muvmBZB8Vj0f/LT1sk=",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"id\":\"evt_001\",\"type\":\"payment.succeeded\",\"amount\":4900}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/webhooks/test",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"webhooks",
+						"test"
+					]
+				},
+				"description": "POST webhook with valid signature and event ID evt_001. Expect 200 OK immediately."
+			},
+			"response": []
+		},
+		{
+			"name": "Moment 2 - Duplicate Request (evt_001)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Webhook-Signature",
+						"value": "+B7AcKzJ1aZvl3xtu5v1O5yK1muvmBZB8Vj0f/LT1sk=",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"id\":\"evt_001\",\"type\":\"payment.succeeded\",\"amount\":4900}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/webhooks/test",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"webhooks",
+						"test"
+					]
+				},
+				"description": "Send identical duplicate request evt_001. Expect 200 OK, but no duplicate row in DB."
+			},
+			"response": []
+		},
+		{
+			"name": "Moment 3 - Forged Request (Tampered Signature)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Webhook-Signature",
+						"value": "FORGED_TAMPERED_SIGNATURE_INVALID_12345=",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"id\":\"evt_001\",\"type\":\"payment.succeeded\",\"amount\":4900}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/webhooks/test",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"webhooks",
+						"test"
+					]
+				},
+				"description": "Send request with tampered signature. Expect 401 Unauthorized immediately before touching DB."
+			},
+			"response": []
+		},
+		{
+			"name": "Moment 4 - Retry & Dead Letter (evt_fail_001)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Webhook-Signature",
+						"value": "0ng+wxRan6NU4BhCQgdTefmbnoLN79v7geciiPIqMMg=",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"id\":\"evt_fail_001\",\"type\":\"payment.failed\",\"simulate_failure\":true}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/webhooks/test",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"webhooks",
+						"test"
+					]
+				},
+				"description": "Send payload designed to fail handler logic. Demonstrates retries and DEAD_LETTER transition."
+			},
+			"response": []
+		},
+		{
+			"name": "GET All Events",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/events",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"events"
+					]
+				},
+				"description": "Fetch current state of all webhook events in the database."
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE Reset Events Store",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/events",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"events"
+					]
+				},
+				"description": "Clear all records from the webhook events table prior to starting the demo."
+			},
+			"response": []
+		}
+	]
+}

@@ -15,7 +15,7 @@ public class DefaultWebhookEventHandler implements WebhookEventHandler {
 			event.getId(), event.getSource(), event.getExternalEventId(), event.getState());
 
 		String payload = event.getPayload();
-		if (payload != null && payload.contains("\"simulate_failure\":true")) {
+		if (payload != null && (payload.contains("\"simulate_failure\":true") || payload.contains("\"simulate_failure\": true") || payload.contains("simulate_failure"))) {
 			throw new RuntimeException("Simulated handler failure");
 		}
 	}
