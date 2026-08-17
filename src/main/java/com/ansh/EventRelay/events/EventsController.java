@@ -4,6 +4,8 @@ import com.ansh.EventRelay.webhooks.BadRequestException;
 import com.ansh.EventRelay.webhooks.NotFoundException;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +19,12 @@ public class EventsController {
 
 	public EventsController(WebhookEventRepository webhookEventRepository) {
 		this.webhookEventRepository = webhookEventRepository;
+	}
+
+	@DeleteMapping
+	public ResponseEntity<Void> clearAll() {
+		webhookEventRepository.deleteAll();
+		return ResponseEntity.ok().build();
 	}
 
 	@GetMapping("/{eventId}")
