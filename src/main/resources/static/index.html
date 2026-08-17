@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventRelay — Live Webhook Ingestion & State Machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #121824;
+      --card-border: #1e293b;
+      --text: #e2e8f0;
+      --text-muted: #64748b;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --dead: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover { background: #334155; }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .metric-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+    .metric-val { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title { font-size: 15px; font-weight: 600; }
+    .view-toggle { font-size: 12px; color: var(--accent); text-decoration: none; cursor: pointer; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: #0f172a;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1e293b;
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-RECEIVED { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-PROCESSING { background: rgba(245, 158, 11, 0.15); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-SUCCESS { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-FAILED { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-DEAD_LETTER { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3); }
+
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .muted { color: var(--text-muted); }
+    
+    .empty-state {
+      padding: 48px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    
+    pre.json-view {
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      background: #0b0f19;
+      overflow-x: auto;
+      max-height: 500px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">
+      <div class="pulse-dot"></div>
+      <h1>EventRelay Event Store</h1>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toggleView()" id="toggleBtn">Raw JSON View</button>
+      <button class="btn btn-danger" onclick="clearStore()">Clear Store (Reset)</button>
+    </div>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-title">Total Events</div>
+      <div class="metric-val" id="cnt-total">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Received</div>
+      <div class="metric-val" style="color: #93c5fd;" id="cnt-received">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Success</div>
+      <div class="metric-val" style="color: #6ee7b7;" id="cnt-success">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Failed</div>
+      <div class="metric-val" style="color: #fca5a5;" id="cnt-failed">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Dead Letter</div>
+      <div class="metric-val" style="color: #c4b5fd;" id="cnt-dead">0</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Event Store State Machine</div>
+      <div class="muted" style="font-size:12px;">Auto-refreshing (1s) &bull; <a href="/events" target="_blank" style="color:var(--accent)">GET /events</a></div>
+    </div>
+
+    <div id="tableView">
+      <table>
+        <thead>
+          <tr>
+            <th>Ext Event ID</th>
+            <th>Source</th>
+            <th>State</th>
+            <th>Retries</th>
+            <th>Next Retry</th>
+            <th>Failure Reason</th>
+            <th>Created At</th>
+          </tr>
+        </thead>
+        <tbody id="eventRows">
+          <tr><td colspan="7" class="empty-state">No webhook events in store yet. Send a request from Postman!</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="rawView" style="display: none;">
+      <pre class="json-view" id="jsonContent">[]</pre>
+    </div>
+  </div>
+
+  <script>
+    let isRawView = false;
+
+    async function fetchEvents() {
+      try {
+        const res = await fetch('/events');
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        console.error("Fetch error:", err);
+      }
+    }
+
+    function render(data) {
+      document.getElementById('jsonContent').textContent = JSON.stringify(data, null, 2);
+
+      document.getElementById('cnt-total').textContent = data.length;
+      document.getElementById('cnt-received').textContent = data.filter(e => e.state === 'RECEIVED').length;
+      document.getElementById('cnt-success').textContent = data.filter(e => e.state === 'SUCCESS').length;
+      document.getElementById('cnt-failed').textContent = data.filter(e => e.state === 'FAILED').length;
+      document.getElementById('cnt-dead').textContent = data.filter(e => e.state === 'DEAD_LETTER').length;
+
+      const tbody = document.getElementById('eventRows');
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No webhook events in store yet. Send a request from Postman!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.map(e => `
+        <tr>
+          <td class="mono" style="font-weight:600;">${escapeHtml(e.externalEventId)}</td>
+          <td class="mono muted">${escapeHtml(e.source)}</td>
+          <td><span class="badge badge-${e.state}">${e.state}</span></td>
+          <td class="mono">${e.retryCount}</td>
+          <td class="mono muted">${e.nextRetryAt ? formatDate(e.nextRetryAt) : '-'}</td>
+          <td class="muted" style="font-size:12px;">${e.failureReason ? escapeHtml(e.failureReason) : '-'}</td>
+          <td class="mono muted" style="font-size:11px;">${formatDate(e.createdAt)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function clearStore() {
+      if (confirm("Reset event store database?")) {
+        await fetch('/events', { method: 'DELETE' });
+        fetchEvents();
+      }
+    }
+
+    function toggleView() {
+      isRawView = !isRawView;
+      document.getElementById('tableView').style.display = isRawView ? 'none' : 'block';
+      document.getElementById('rawView').style.display = isRawView ? 'block' : 'none';
+      document.getElementById('toggleBtn').textContent = isRawView ? 'Visual Table View' : 'Raw JSON View';
+    }
+
+    function formatDate(str) {
+      if (!str) return '-';
+      const d = new Date(str);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
+    }
+
+    setInterval(fetchEvents, 1000);
+    fetchEvents();
+  </script>
+</body>
+</html>
