@@ -1,2 +1,7 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# GitHub Linguist overrides: exclude static assets from repo language breakdown
+*.html linguist-detectable=false
+src/main/resources/static/** linguist-detectable=false
+src/main/resources/static/** linguist-vendored=true
