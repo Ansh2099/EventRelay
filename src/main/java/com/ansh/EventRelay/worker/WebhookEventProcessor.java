@@ -4,14 +4,16 @@ import com.ansh.EventRelay.events.WebhookEvent;
 import com.ansh.EventRelay.events.WebhookEventRepository;
 import java.time.Instant;
 import java.util.List;
+
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Slf4j
 public class WebhookEventProcessor {
-	private static final Logger log = LoggerFactory.getLogger(WebhookEventProcessor.class);
 
 	private final WebhookEventRepository repository;
 	private final WebhookEventHandler handler;

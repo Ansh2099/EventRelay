@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,8 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/webhooks")
+@Slf4j
 public class WebhookIngestionController {
-	private static final Logger log = LoggerFactory.getLogger(WebhookIngestionController.class);
 	private final WebhookSecretsProperties secretsProperties;
 	private final SignatureVerifier signatureVerifier;
 	private final WebhookIngestionService ingestionService;
