@@ -1,902 +1,218 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EventRelay — Live Webhook Ingestion &amp; State Machine</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-    <style>
-        /* Default White / Light Presentation Theme */
-        :root, :root[data-theme="light"], :root[data-theme="white"], :root[data-theme="projector"] {
-          --bg: #f8fafc;
-          --bg-gradient: radial-gradient(1200px 500px at 15% -10%, rgba(37, 99, 235, 0.07), transparent 70%);
-          --panel: #ffffff;
-          --panel-2: #f1f5f9;
-          --panel-hover: #f8fafc;
-          --line: #cbd5e1;
-          --line-soft: #e2e8f0;
-          --text: #0f172a;
-          --text-strong: #000000;
-          --muted: #475569;
-          --accent: #2563eb;
-          --accent-glow: rgba(37, 99, 235, 0.15);
-          --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.10), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-
-          --st-received: #1d4ed8;
-          --st-processing: #b45309;
-          --st-success: #059669;
-          --st-failed: #dc2626;
-          --st-dead: #7c3aed;
-
-          --btn-bg: #ffffff;
-          --btn-border: #cbd5e1;
-          --btn-hover: #f1f5f9;
-          --json-bg: #0f172a;
-          --json-text: #38bdf8;
-        }
-
-        /* High-Contrast Dark Mode */
-        :root[data-theme="dark"] {
-          --bg: #090d16;
-          --bg-gradient: radial-gradient(1100px 500px at 15% -10%, rgba(59, 130, 246, 0.16), transparent 70%);
-          --panel: #111827;
-          --panel-2: #0b0f19;
-          --panel-hover: #1f293d;
-          --line: #2d3b55;
-          --line-soft: #1e283d;
-          --text: #f8fafc;
-          --text-strong: #ffffff;
-          --muted: #94a3b8;
-          --accent: #38bdf8;
-          --accent-glow: rgba(56, 189, 248, 0.25);
-          --card-shadow: 0 20px 45px -20px rgba(0, 0, 0, 0.95);
-
-          --st-received: #60a5fa;
-          --st-processing: #fbbf24;
-          --st-success: #34d399;
-          --st-failed: #f87171;
-          --st-dead: #c084fc;
-
-          --btn-bg: #162032;
-          --btn-border: #2e3e5c;
-          --btn-hover: #22304a;
-          --json-bg: #070a10;
-          --json-text: #7dd3fc;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { -webkit-text-size-adjust: 100%; }
-
-        body {
-          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: var(--bg-gradient), var(--bg);
-          background-attachment: fixed;
-          color: var(--text);
-          padding: 24px 20px 40px;
-          line-height: 1.5;
-          font-size: 14px;
-          -webkit-font-smoothing: antialiased;
-          transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        .wrap { max-width: 1340px; margin: 0 auto; }
-
-        .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .muted { color: var(--muted); }
-        .num { font-variant-numeric: tabular-nums; }
-
-        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
-
-        /* ---------- header ---------- */
-        .header {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px;
-          justify-content: space-between;
-          align-items: center;
-          padding-bottom: 18px;
-          margin-bottom: 22px;
-          border-bottom: 2px solid var(--line);
-        }
-
-        .brand { display: flex; align-items: center; gap: 14px; }
-
-        .pulse-container {
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 22px;
-          height: 22px;
-        }
-
-        .pulse-dot {
-          width: 10px; height: 10px;
-          background: var(--st-success);
-          border-radius: 50%;
-          z-index: 2;
-          box-shadow: 0 0 10px var(--st-success);
-        }
-
-        .pulse-ring {
-          position: absolute;
-          width: 20px; height: 20px;
-          border-radius: 50%;
-          background: rgba(5, 150, 105, 0.4);
-          animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-        }
-
-        @keyframes ping {
-          75%, 100% { transform: scale(1.8); opacity: 0; }
-        }
-
-        h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-strong); }
-        .brand .sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 500; }
-        .brand .sub a { color: var(--accent); text-decoration: none; font-weight: 600; }
-        .brand .sub a:hover { text-decoration: underline; }
-
-        .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-
-        .btn {
-          background: var(--btn-bg);
-          color: var(--text);
-          border: 1.5px solid var(--btn-border);
-          padding: 8px 14px;
-          border-radius: 8px;
-          font: inherit;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .btn:hover { background: var(--btn-hover); border-color: var(--accent); color: var(--accent); }
-        .btn:active { transform: translateY(1px); }
-        .btn-active { background: var(--accent); border-color: var(--accent); color: #ffffff !important; }
-        .btn-danger { background: rgba(220, 38, 38, 0.08); color: #dc2626; border-color: rgba(220, 38, 38, 0.35); }
-        .btn-danger:hover { background: #dc2626; border-color: #dc2626; color: #ffffff !important; }
-
-        /* ---------- pipeline strip ---------- */
-        .pipeline {
-          display: flex;
-          align-items: stretch;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .node {
-          position: relative;
-          background: var(--panel);
-          border: 2px solid var(--line);
-          border-radius: 12px;
-          padding: 13px 18px 12px;
-          min-width: 140px;
-          overflow: hidden;
-          cursor: pointer;
-          transition: all 0.18s ease;
-          user-select: none;
-          box-shadow: var(--card-shadow);
-        }
-
-        .node:hover {
-          background: var(--panel-hover);
-          border-color: var(--node-color, var(--accent));
-          transform: translateY(-2px);
-        }
-
-        .node.active-filter {
-          border-color: var(--node-color, var(--accent));
-          box-shadow: 0 0 0 3px var(--accent-glow);
-          background: var(--panel-hover);
-        }
-
-        .node::before {
-          content: "";
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 4.5px;
-          background: var(--node-color, var(--muted));
-        }
-
-        .node-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.9px;
-          text-transform: uppercase;
-          color: var(--muted);
-        }
-        .node-dot {
-          width: 7px; height: 7px; border-radius: 50%;
-          background: var(--node-color, var(--muted));
-          flex: none;
-        }
-        .node-count {
-          font-size: 30px;
-          font-weight: 800;
-          letter-spacing: -1px;
-          margin-top: 4px;
-          color: var(--node-color, var(--text-strong));
-          font-variant-numeric: tabular-nums;
-          line-height: 1.1;
-        }
-        .node.total { min-width: 155px; }
-        .node.total .node-count { color: var(--text-strong); }
-
-        .arrow {
-          align-self: center;
-          color: var(--muted);
-          font-size: 16px;
-          font-weight: 800;
-          user-select: none;
-        }
-        .split { width: 2px; background: var(--line); margin: 6px 4px; }
-
-        .caption-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 13px;
-          color: var(--muted);
-          font-weight: 500;
-          margin-bottom: 22px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .filter-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: var(--panel);
-          border: 1.5px solid var(--line);
-          padding: 4px 10px;
-          border-radius: 6px;
-          color: var(--text);
-          font-size: 12px;
-          font-weight: 600;
-        }
-        .filter-badge button {
-          background: none; border: none; color: #dc2626; cursor: pointer; font-size: 14px; line-height: 1; font-weight: 800;
-        }
-
-        /* ---------- card ---------- */
-        .card {
-          background: var(--panel);
-          border: 2px solid var(--line);
-          border-radius: 14px;
-          overflow: hidden;
-          box-shadow: var(--card-shadow);
-        }
-
-        .card-header {
-          padding: 16px 22px;
-          border-bottom: 2px solid var(--line);
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          justify-content: space-between;
-          align-items: center;
-          background: var(--panel-2);
-        }
-        .card-title {
-          font-size: 15.5px;
-          font-weight: 700;
-          letter-spacing: -0.3px;
-          color: var(--text-strong);
-        }
-        .card-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 12px; font-weight: 500; }
-        .card-meta a { color: var(--accent); text-decoration: none; font-weight: 700; }
-        .card-meta a:hover { text-decoration: underline; }
-
-        .scroller { overflow-x: auto; }
-
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px; }
-
-        th {
-          background: var(--panel-2);
-          color: var(--muted);
-          font-weight: 700;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.9px;
-          padding: 13px 18px;
-          border-bottom: 2px solid var(--line);
-          white-space: nowrap;
-        }
-
-        td {
-          padding: 14px 18px;
-          border-bottom: 1px solid var(--line-soft);
-          vertical-align: middle;
-          white-space: nowrap;
-        }
-        tbody tr:last-child td { border-bottom: none; }
-        tbody tr { cursor: pointer; transition: background 0.15s ease; }
-        tbody tr:hover td { background: var(--panel-hover); }
-
-        td.state-edge { border-left: 4.5px solid transparent; padding-left: 14px; }
-        tr[data-state="RECEIVED"]    td.state-edge { border-left-color: var(--st-received); }
-        tr[data-state="PROCESSING"]  td.state-edge { border-left-color: var(--st-processing); }
-        tr[data-state="SUCCESS"]     td.state-edge { border-left-color: var(--st-success); }
-        tr[data-state="FAILED"]      td.state-edge { border-left-color: var(--st-failed); }
-        tr[data-state="DEAD_LETTER"] td.state-edge { border-left-color: var(--st-dead); }
-
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 10px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.8px;
-          text-transform: uppercase;
-        }
-        .badge::before {
-          content: "";
-          width: 6px; height: 6px; border-radius: 50%;
-          background: currentColor;
-        }
-        .badge-RECEIVED    { background: rgba(37, 99, 235, 0.12); color: var(--st-received);   border: 1.5px solid var(--st-received); }
-        .badge-PROCESSING  { background: rgba(217, 119, 6, 0.12); color: var(--st-processing); border: 1.5px solid var(--st-processing); }
-        .badge-SUCCESS     { background: rgba(5, 150, 105, 0.12); color: var(--st-success);    border: 1.5px solid var(--st-success); }
-        .badge-FAILED      { background: rgba(220, 38, 38, 0.12); color: var(--st-failed);     border: 1.5px solid var(--st-failed); }
-        .badge-DEAD_LETTER { background: rgba(124, 58, 237, 0.12); color: var(--st-dead);      border: 1.5px solid var(--st-dead); }
-        .badge-UNKNOWN     { background: rgba(100, 116, 139, 0.12); color: var(--muted);        border: 1.5px solid var(--muted); }
-
-        .retry-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 3px 8px;
-          border-radius: 6px;
-          background: rgba(220, 38, 38, 0.12);
-          border: 1.5px solid rgba(220, 38, 38, 0.35);
-          color: #dc2626;
-          font-size: 12px;
-          font-weight: 700;
-          font-family: 'JetBrains Mono', monospace;
-        }
-
-        .countdown-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 3px 9px;
-          border-radius: 6px;
-          background: rgba(217, 119, 6, 0.12);
-          border: 1.5px solid rgba(217, 119, 6, 0.4);
-          color: #b45309;
-          font-size: 12px;
-          font-family: 'JetBrains Mono', monospace;
-          font-weight: 700;
-        }
-
-        .reason {
-          max-width: 280px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #dc2626;
-          font-size: 12px;
-          font-weight: 600;
-          font-family: 'JetBrains Mono', monospace;
-        }
-
-        .empty-state {
-          padding: 60px 24px;
-          text-align: center;
-          color: var(--muted);
-          white-space: normal;
-          font-size: 14px;
-        }
-        .empty-state strong { display: block; color: var(--text-strong); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-
-        pre.json-view {
-          padding: 20px 24px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 13px;
-          line-height: 1.65;
-          color: var(--json-text);
-          background: var(--json-bg);
-          overflow: auto;
-          max-height: 520px;
-          font-weight: 500;
-        }
-
-        /* ---------- details modal ---------- */
-        .modal-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.65);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          z-index: 100;
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity 0.2s ease;
-        }
-        .modal-backdrop.open { opacity: 1; pointer-events: auto; }
-        .modal-card {
-          background: var(--panel);
-          border: 2px solid var(--line);
-          border-radius: 14px;
-          width: 100%;
-          max-width: 700px;
-          box-shadow: 0 25px 60px -15px rgba(0,0,0,0.5);
-          overflow: hidden;
-          transform: translateY(12px);
-          transition: transform 0.2s ease;
-        }
-        .modal-backdrop.open .modal-card { transform: translateY(0); }
-
-        .modal-header {
-          padding: 16px 22px;
-          border-bottom: 2px solid var(--line);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: var(--panel-2);
-        }
-        .modal-body { padding: 22px; max-height: 75vh; overflow-y: auto; }
-        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
-        .modal-field {
-          background: var(--panel-2);
-          border: 1.5px solid var(--line);
-          padding: 12px 14px;
-          border-radius: 8px;
-        }
-        .modal-field-label { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
-        .modal-field-val { font-size: 13.5px; margin-top: 4px; font-weight: 600; word-break: break-all; color: var(--text-strong); }
-
-        /* ---------- toasts ---------- */
-        .toast-container {
-          position: fixed;
-          bottom: 24px;
-          right: 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          z-index: 90;
-          pointer-events: none;
-        }
-        .toast {
-          background: var(--panel);
-          border: 2px solid var(--accent);
-          color: var(--text-strong);
-          padding: 12px 18px;
-          border-radius: 10px;
-          font-size: 13px;
-          font-weight: 600;
-          box-shadow: 0 15px 30px -5px rgba(0,0,0,0.25);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          pointer-events: auto;
-          animation: slideUp 0.25s ease-out;
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-
-        @media (max-width: 760px) {
-          body { padding: 18px 14px 32px; }
-          .arrow, .split { display: none; }
-          .node { flex: 1 1 140px; min-width: 0; }
-          .node.total { flex-basis: 100%; }
-          .modal-grid { grid-template-columns: 1fr; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after { animation: none !important; transition: none !important; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventRelay — Live Webhook Ingestion &amp; State Machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="light"] {
+      --bg: #f8fafc; --panel: #ffffff; --panel-2: #f1f5f9; --line: #cbd5e1; --text: #0f172a; --muted: #475569;
+      --accent: #2563eb; --btn-bg: #ffffff; --btn-border: #cbd5e1; --json-bg: #0f172a; --json-text: #38bdf8;
+      --st-rec: #1d4ed8; --st-proc: #b45309; --st-succ: #059669; --st-fail: #dc2626; --st-dead: #7c3aed;
+    }
+    [data-theme="dark"] {
+      --bg: #090d16; --panel: #111827; --panel-2: #0b0f19; --line: #2d3b55; --text: #f8fafc; --muted: #94a3b8;
+      --accent: #38bdf8; --btn-bg: #162032; --btn-border: #2e3e5c; --json-bg: #070a10; --json-text: #7dd3fc;
+      --st-rec: #60a5fa; --st-proc: #fbbf24; --st-succ: #34d399; --st-fail: #f87171; --st-dead: #c084fc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; font-size: 13.5px; }
+    .wrap { max-width: 1340px; margin: 0 auto; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--line); flex-wrap: wrap; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .pulse-dot { width: 10px; height: 10px; background: var(--st-succ); border-radius: 50%; box-shadow: 0 0 10px var(--st-succ); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { background: var(--btn-bg); color: var(--text); border: 1.5px solid var(--btn-border); padding: 7px 13px; border-radius: 7px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-active { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+    .btn-danger { color: #dc2626; border-color: rgba(220,38,38,0.35); }
+    .btn-danger:hover { background: #dc2626; color: #fff !important; }
+    .pipeline { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .node { position: relative; background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 10px 16px; min-width: 130px; cursor: pointer; flex: 1; border-left: 4.5px solid var(--c, var(--accent)); }
+    .node:hover, .node.active { border-color: var(--c, var(--accent)); transform: translateY(-1px); }
+    .node-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+    .node-count { font-size: 26px; font-weight: 800; margin-top: 2px; color: var(--c, var(--text)); font-variant-numeric: tabular-nums; }
+    .arrow { align-self: center; color: var(--muted); font-weight: 800; }
+    .card { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .card-header { padding: 12px 18px; border-bottom: 2px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: var(--panel-2); font-weight: 700; }
+    .scroller { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { background: var(--panel-2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 11px 16px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    tbody tr:hover { background: var(--panel-2); cursor: pointer; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; border: 1.5px solid currentColor; }
+    .badge-RECEIVED { color: var(--st-rec); background: rgba(29,78,216,0.1); }
+    .badge-PROCESSING { color: var(--st-proc); background: rgba(180,83,9,0.1); }
+    .badge-SUCCESS { color: var(--st-succ); background: rgba(5,150,105,0.1); }
+    .badge-FAILED { color: var(--st-fail); background: rgba(220,38,38,0.1); }
+    .badge-DEAD_LETTER { color: var(--st-dead); background: rgba(124,58,237,0.1); }
+    .pill { display: inline-block; padding: 2px 7px; border-radius: 5px; font-weight: 700; font-size: 11.5px; }
+    .pill-retry { color: #dc2626; background: rgba(220,38,38,0.12); border: 1px solid rgba(220,38,38,0.3); }
+    .pill-count { color: #b45309; background: rgba(180,83,9,0.12); border: 1px solid rgba(180,83,9,0.3); }
+    pre.json-view { padding: 16px; font-size: 12.5px; line-height: 1.6; color: var(--json-text); background: var(--json-bg); overflow: auto; max-height: 500px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+    .modal-backdrop.open { display: flex; }
+    .modal-card { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; width: 100%; max-width: 650px; overflow: hidden; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 18px; }
+    .modal-field { background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: 6px; }
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 99; pointer-events: none; }
+    .toast { background: var(--panel); border: 2px solid var(--accent); color: var(--text); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 12.5px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+  </style>
 </head>
 <body>
 <div class="wrap">
-
-    <div class="header">
-        <div class="brand">
-            <div class="pulse-container">
-                <div class="pulse-ring"></div>
-                <div class="pulse-dot" id="liveDot"></div>
-            </div>
-            <div>
-                <h1>EventRelay Event Store</h1>
-                <div class="sub mono">Real-time Webhook Ingestion &amp; Idempotent State Machine</div>
-            </div>
-        </div>
-        <div class="actions">
-            <button class="btn" onclick="toggleTheme()" id="themeBtn">☀️ Projector Mode</button>
-            <button class="btn" onclick="togglePolling()" id="pauseBtn">⏸ Pause</button>
-            <button class="btn" onclick="toggleView()" id="toggleBtn">Raw JSON View</button>
-            <button class="btn btn-danger" onclick="clearStore()">Clear Store (Reset)</button>
-        </div>
+  <div class="header">
+    <div class="brand">
+      <div class="pulse-dot"></div>
+      <div>
+        <h1 style="font-size:18px;font-weight:800;">EventRelay Event Store</h1>
+        <div style="font-size:11.5px;color:var(--muted);" class="mono">Webhook Ingestion &amp; Idempotency Engine</div>
+      </div>
     </div>
-
-    <div class="pipeline">
-        <div class="node total" onclick="setFilter(null)" id="node-total">
-            <div class="node-label"><span class="node-dot" style="background: var(--accent)"></span>Total events</div>
-            <div class="node-count" id="cnt-total">0</div>
-        </div>
-        <div class="split" aria-hidden="true"></div>
-
-        <div class="node" style="--node-color: var(--st-received)" onclick="setFilter('RECEIVED')" id="node-RECEIVED">
-            <div class="node-label"><span class="node-dot"></span>Received</div>
-            <div class="node-count" id="cnt-received">0</div>
-        </div>
-        <span class="arrow" aria-hidden="true">&rarr;</span>
-
-        <div class="node" style="--node-color: var(--st-processing)" onclick="setFilter('PROCESSING')" id="node-PROCESSING">
-            <div class="node-label"><span class="node-dot"></span>Processing</div>
-            <div class="node-count" id="cnt-processing">0</div>
-        </div>
-        <span class="arrow" aria-hidden="true">&rarr;</span>
-
-        <div class="node" style="--node-color: var(--st-success)" onclick="setFilter('SUCCESS')" id="node-SUCCESS">
-            <div class="node-label"><span class="node-dot"></span>Success</div>
-            <div class="node-count" id="cnt-success">0</div>
-        </div>
-        <div class="split" aria-hidden="true"></div>
-
-        <div class="node" style="--node-color: var(--st-failed)" onclick="setFilter('FAILED')" id="node-FAILED">
-            <div class="node-label"><span class="node-dot"></span>Failed</div>
-            <div class="node-count" id="cnt-failed">0</div>
-        </div>
-        <span class="arrow" aria-hidden="true">&rarr;</span>
-
-        <div class="node" style="--node-color: var(--st-dead)" onclick="setFilter('DEAD_LETTER')" id="node-DEAD_LETTER">
-            <div class="node-label"><span class="node-dot"></span>Dead letter</div>
-            <div class="node-count" id="cnt-dead">0</div>
-        </div>
+    <div class="actions">
+      <button class="btn" onclick="toggleTheme()" id="themeBtn">🌙 Dark Mode</button>
+      <button class="btn" onclick="togglePolling()" id="pauseBtn">⏸ Pause</button>
+      <button class="btn" onclick="toggleView()" id="toggleBtn">Raw JSON View</button>
+      <button class="btn btn-danger" onclick="clearStore()">Clear Store (Reset)</button>
     </div>
+  </div>
 
-    <div class="caption-bar">
-        <span>Failed events retry on exponential backoff. Once retries expire, they transition to dead letter.</span>
-        <div id="filterInfo" style="display: none;">
-            <span class="filter-badge">Filter: <strong id="currentFilterText"></strong> <button onclick="setFilter(null)" title="Clear filter">&times;</button></span>
-        </div>
+  <div class="pipeline">
+    <div class="node" onclick="setFilter(null)" id="n-total" style="--c:var(--accent)"><div class="node-label">Total</div><div class="node-count" id="c-total">0</div></div>
+    <div class="node" onclick="setFilter('RECEIVED')" id="n-RECEIVED" style="--c:var(--st-rec)"><div class="node-label">Received</div><div class="node-count" id="c-RECEIVED">0</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node" onclick="setFilter('PROCESSING')" id="n-PROCESSING" style="--c:var(--st-proc)"><div class="node-label">Processing</div><div class="node-count" id="c-PROCESSING">0</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node" onclick="setFilter('SUCCESS')" id="n-SUCCESS" style="--c:var(--st-succ)"><div class="node-label">Success</div><div class="node-count" id="c-SUCCESS">0</div></div>
+    <div class="node" onclick="setFilter('FAILED')" id="n-FAILED" style="--c:var(--st-fail)"><div class="node-label">Failed</div><div class="node-count" id="c-FAILED">0</div></div>
+    <span class="arrow">&rarr;</span>
+    <div class="node" onclick="setFilter('DEAD_LETTER')" id="n-DEAD_LETTER" style="--c:var(--st-dead)"><div class="node-label">Dead Letter</div><div class="node-count" id="c-DEAD_LETTER">0</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span>Event Store State Machine <span id="filterLabel" style="display:none;color:var(--accent);font-size:12px;">(Filtered)</span></span>
+      <span class="mono" style="font-size:11.5px;color:var(--muted);" id="pollStatus">Auto-refresh: 1s &bull; <a href="/events" target="_blank" style="color:var(--accent);">GET /events</a></span>
     </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div class="card-title">
-                <span>Event Store State Machine</span>
-            </div>
-            <div class="card-meta">
-                <span id="pollStatus" class="mono">Auto-refresh: 1s</span> &bull; 
-                <a href="/events" target="_blank" rel="noopener">GET /events</a>
-            </div>
-        </div>
-
-        <div id="tableView" class="scroller">
-            <table>
-                <thead>
-                <tr>
-                    <th scope="col">Ext Event ID</th>
-                    <th scope="col">Source</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Retries</th>
-                    <th scope="col">Next Retry / Schedule</th>
-                    <th scope="col">Failure Reason</th>
-                    <th scope="col">Created At</th>
-                    <th scope="col">Latency</th>
-                </tr>
-                </thead>
-                <tbody id="eventRows">
-                <tr><td colspan="8" class="empty-state"><strong>No events in store yet</strong>Send a webhook from Postman and watch it transition in real-time.</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div id="rawView" style="display: none;">
-            <pre class="json-view" id="jsonContent">[]</pre>
-        </div>
+    <div id="tableView" class="scroller">
+      <table>
+        <thead><tr><th>Ext Event ID</th><th>Source</th><th>State</th><th>Retries</th><th>Next Retry</th><th>Failure Reason</th><th>Created At</th><th>Latency</th></tr></thead>
+        <tbody id="eventRows"><tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">No events in store yet. Send requests from Postman.</td></tr></tbody>
+      </table>
     </div>
+    <div id="rawView" style="display:none;"><pre class="json-view mono" id="jsonContent">[]</pre></div>
+  </div>
 </div>
 
-<!-- Modal for Inspecting Single Event -->
-<div class="modal-backdrop" id="eventModal" onclick="closeModal(event)">
-    <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <h3 style="font-size: 16px; font-weight: 700;">Event Inspector</h3>
-            <button class="btn" onclick="closeModal()" style="padding: 4px 10px;">&times; Close</button>
-        </div>
-        <div class="modal-body" id="modalBody">
-            <!-- Populated dynamically -->
-        </div>
+<div class="modal-backdrop" id="modal" onclick="closeModal()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div style="padding:14px 18px;border-bottom:2px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--panel-2);">
+      <h3 style="font-size:15px;font-weight:700;">Event Inspector</h3><button class="btn" onclick="closeModal()" style="padding:3px 8px;">&times;</button>
     </div>
+    <div class="modal-grid" id="modalBody"></div>
+  </div>
 </div>
-
-<!-- Toast Notifications Container -->
-<div class="toast-container" id="toastContainer"></div>
+<div class="toast-container" id="toasts"></div>
 
 <script>
-    const STATES = ['RECEIVED', 'PROCESSING', 'SUCCESS', 'FAILED', 'DEAD_LETTER'];
-    let isRawView = false;
-    let lastPayload = null;
-    let cachedData = [];
-    let activeFilter = null;
-    let isPaused = false;
-    let currentTheme = localStorage.getItem('eventrelay_theme') || 'light';
-    const knownEventStates = new Map();
+  let cached = [], filter = null, paused = false, isRaw = false, lastPayload = '';
+  const states = ['RECEIVED','PROCESSING','SUCCESS','FAILED','DEAD_LETTER'], prevStates = new Map();
+  let theme = localStorage.getItem('eventrelay_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeBtn();
 
-    // Apply light mode default
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    updateThemeButton();
+  function toggleTheme() {
+    theme = theme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('eventrelay_theme', theme);
+    updateThemeBtn();
+  }
+  function updateThemeBtn() { document.getElementById('themeBtn').textContent = theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'; }
 
-    function toggleTheme() {
-      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', currentTheme);
-      localStorage.setItem('eventrelay_theme', currentTheme);
-      updateThemeButton();
-    }
-
-    function updateThemeButton() {
-      const btn = document.getElementById('themeBtn');
-      if (btn) {
-        btn.innerHTML = currentTheme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
-      }
-    }
-
-    async function fetchEvents() {
-      if (isPaused) return;
-      try {
-        const res = await fetch('/events');
-        const data = await res.json();
-        cachedData = data;
-        detectStateChanges(data);
-        render(data);
-      } catch (err) {
-        console.error("Fetch error:", err);
-        document.getElementById('liveDot').style.background = '#dc2626';
-      }
-    }
-
-    function detectStateChanges(data) {
+  async function fetchEvents() {
+    if (paused) return;
+    try {
+      const res = await fetch('/events');
+      const data = await res.json();
+      cached = data;
       data.forEach(e => {
-        const prev = knownEventStates.get(e.id);
-        if (prev && prev !== e.state) {
-          showToast(`⚡ <strong>${escapeHtml(e.externalEventId)}</strong> transitioned: <code>${prev}</code> &rarr; <code>${e.state}</code>`);
-        }
-        knownEventStates.set(e.id, e.state);
+        const p = prevStates.get(e.id);
+        if (p && p !== e.state) showToast(`⚡ <strong>${esc(e.externalEventId)}</strong>: <code>${p}</code> &rarr; <code>${e.state}</code>`);
+        prevStates.set(e.id, e.state);
       });
-    }
+      render();
+    } catch(err) { console.error(err); }
+  }
 
-    function setFilter(state) {
-      activeFilter = state;
-      document.querySelectorAll('.node').forEach(n => n.classList.remove('active-filter'));
-      if (state) {
-        document.getElementById(`node-${state}`)?.classList.add('active-filter');
-        document.getElementById('filterInfo').style.display = 'block';
-        document.getElementById('currentFilterText').textContent = state;
-      } else {
-        document.getElementById('node-total')?.classList.add('active-filter');
-        document.getElementById('filterInfo').style.display = 'none';
-      }
-      render(cachedData, true);
-    }
+  function setFilter(st) {
+    filter = st;
+    document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+    (st ? document.getElementById('n-' + st) : document.getElementById('n-total'))?.classList.add('active');
+    document.getElementById('filterLabel').style.display = st ? 'inline' : 'none';
+    render(true);
+  }
 
-    function render(data, force = false) {
-      const payload = JSON.stringify(data);
-      document.getElementById('jsonContent').textContent = JSON.stringify(data, null, 2);
+  function render(force = false) {
+    const payload = JSON.stringify(cached);
+    document.getElementById('jsonContent').textContent = JSON.stringify(cached, null, 2);
+    document.getElementById('c-total').textContent = cached.length;
+    states.forEach(s => document.getElementById('c-' + s).textContent = cached.filter(e => e.state === s).length);
+    if (!force && payload === lastPayload) return;
+    lastPayload = payload;
 
-      // Update counters
-      document.getElementById('cnt-total').textContent = data.length;
-      document.getElementById('cnt-received').textContent = data.filter(e => e.state === 'RECEIVED').length;
-      document.getElementById('cnt-processing').textContent = data.filter(e => e.state === 'PROCESSING').length;
-      document.getElementById('cnt-success').textContent = data.filter(e => e.state === 'SUCCESS').length;
-      document.getElementById('cnt-failed').textContent = data.filter(e => e.state === 'FAILED').length;
-      document.getElementById('cnt-dead').textContent = data.filter(e => e.state === 'DEAD_LETTER').length;
+    const list = filter ? cached.filter(e => e.state === filter) : cached;
+    const tbody = document.getElementById('eventRows');
+    if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">No ${filter || ''} events found.</td></tr>`; return; }
 
-      // Avoid DOM redraw if content didn't change unless filter forced
-      if (!force && payload === lastPayload) {
-        updateCountdowns();
-        return;
-      }
-      lastPayload = payload;
+    tbody.innerHTML = list.map(e => `
+      <tr onclick="inspect('${e.id}')">
+        <td class="mono" style="font-weight:700;">${esc(e.externalEventId)}</td>
+        <td class="mono muted">${esc(e.source)}</td>
+        <td><span class="badge badge-${e.state}">${e.state}</span></td>
+        <td>${e.retryCount > 0 ? `<span class="pill pill-retry">${e.retryCount}</span>` : '<span class="muted">0</span>'}</td>
+        <td class="mono">${getCountdown(e.nextRetryAt)}</td>
+        <td class="mono" style="color:#dc2626;max-width:240px;overflow:hidden;text-overflow:ellipsis;">${esc(e.failureReason) || '<span class="muted">-</span>'}</td>
+        <td class="mono muted" style="font-size:11.5px;">${fmtDate(e.createdAt)}</td>
+        <td class="mono muted" style="font-size:11.5px;">${getLatency(e.createdAt, e.updatedAt)}</td>
+      </tr>
+    `).join('');
+  }
 
-      const filtered = activeFilter ? data.filter(e => e.state === activeFilter) : data;
-      const tbody = document.getElementById('eventRows');
+  function getCountdown(dt) {
+    if (!dt) return '<span class="muted">-</span>';
+    const s = Math.round((new Date(dt).getTime() - Date.now()) / 1000);
+    return s > 0 ? `<span class="pill pill-count">⏱ in ${s}s</span>` : '<span class="pill pill-retry">Due now</span>';
+  }
+  function getLatency(c, u) {
+    if (!c || !u) return '-';
+    const diff = new Date(u) - new Date(c);
+    return isNaN(diff) || diff < 0 ? '-' : diff < 1000 ? `${diff}ms` : `${(diff/1000).toFixed(2)}s`;
+  }
+  function fmtDate(s) { return s ? new Date(s).toLocaleTimeString() : '-'; }
+  function esc(s) { return s ? String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]) : ''; }
 
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><strong>No ${activeFilter || ''} events found</strong>Send a webhook request from Postman to populate this table.</td></tr>`;
-        return;
-      }
+  function inspect(id) {
+    const e = cached.find(x => x.id === id); if (!e) return;
+    document.getElementById('modalBody').innerHTML = `
+      <div class="modal-field"><div style="font-size:10.5px;color:var(--muted);">EXTERNAL ID</div><strong class="mono" style="color:var(--accent);">${esc(e.externalEventId)}</strong></div>
+      <div class="modal-field"><div style="font-size:10.5px;color:var(--muted);">STATE</div><span class="badge badge-${e.state}">${e.state}</span></div>
+      <div class="modal-field"><div style="font-size:10.5px;color:var(--muted);">UUID</div><div class="mono" style="font-size:11px;">${esc(e.id)}</div></div>
+      <div class="modal-field"><div style="font-size:10.5px;color:var(--muted);">RETRIES</div><div class="mono">${e.retryCount}</div></div>
+      <div class="modal-field" style="grid-column:span 2;"><div style="font-size:10.5px;color:var(--muted);">RAW RECORD</div><pre class="mono" style="background:var(--json-bg);color:var(--json-text);padding:10px;border-radius:6px;font-size:11px;overflow:auto;max-height:180px;">${esc(JSON.stringify(e, null, 2))}</pre></div>
+    `;
+    document.getElementById('modal').classList.add('open');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+  function toggleView() { isRaw = !isRaw; document.getElementById('tableView').style.display = isRaw ? 'none':'block'; document.getElementById('rawView').style.display = isRaw ? 'block':'none'; document.getElementById('toggleBtn').textContent = isRaw ? 'Visual View':'Raw JSON View'; document.getElementById('toggleBtn').classList.toggle('btn-active', isRaw); }
+  function togglePolling() { paused = !paused; document.getElementById('pauseBtn').textContent = paused ? '▶ Resume':'⏸ Pause'; document.getElementById('pauseBtn').classList.toggle('btn-active', paused); document.getElementById('pollStatus').textContent = paused ? 'Paused' : 'Auto-refresh: 1s'; if (!paused) fetchEvents(); }
+  async function clearStore() { if (confirm("Reset event store?")) { await fetch('/events', {method:'DELETE'}); prevStates.clear(); lastPayload=''; fetchEvents(); showToast("🧹 Store reset."); } }
+  function showToast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = msg; document.getElementById('toasts').appendChild(t); setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 3000); }
 
-      tbody.innerHTML = filtered.map(e => {
-        const state = STATES.includes(e.state) ? e.state : 'UNKNOWN';
-        const retryHtml = e.retryCount > 0 
-          ? `<span class="retry-pill">${e.retryCount}</span>` 
-          : `<span class="mono muted" style="font-weight:700;">0</span>`;
-
-        const retryCountdown = getCountdownHtml(e.nextRetryAt);
-        const latency = getLatency(e.createdAt, e.updatedAt);
-
-        return `
-          <tr data-state="${state}" onclick="inspectEvent('${e.id}')" title="Click to inspect full details">
-            <td class="state-edge mono" style="font-weight:700; color: var(--text-strong);">${escapeHtml(e.externalEventId)}</td>
-            <td class="mono muted" style="font-weight:600;">${escapeHtml(e.source)}</td>
-            <td><span class="badge badge-${state}">${escapeHtml(e.state)}</span></td>
-            <td class="num">${retryHtml}</td>
-            <td class="mono num">${retryCountdown}</td>
-            <td class="reason" title="${escapeHtml(e.failureReason)}">${e.failureReason ? escapeHtml(e.failureReason) : '<span class="muted">-</span>'}</td>
-            <td class="mono muted" style="font-size:12px; font-weight:600;">${formatDate(e.createdAt)}</td>
-            <td class="mono muted" style="font-size:12px; font-weight:600;">${latency}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function getCountdownHtml(nextRetryStr) {
-      if (!nextRetryStr) return '<span class="muted" style="font-weight:600;">-</span>';
-      const target = new Date(nextRetryStr).getTime();
-      const diffSec = Math.round((target - Date.now()) / 1000);
-      if (diffSec > 0) {
-        return `<span class="countdown-pill" data-target="${target}">⏱ in ${diffSec}s</span>`;
-      } else {
-        return `<span class="countdown-pill" style="background:rgba(220,38,38,0.15);color:#dc2626;border-color:#dc2626;">Due now</span>`;
-      }
-    }
-
-    function updateCountdowns() {
-      document.querySelectorAll('.countdown-pill[data-target]').forEach(el => {
-        const target = parseInt(el.getAttribute('data-target'), 10);
-        const diffSec = Math.round((target - Date.now()) / 1000);
-        if (diffSec > 0) {
-          el.textContent = `⏱ in ${diffSec}s`;
-        } else {
-          el.textContent = 'Due now';
-        }
-      });
-    }
-
-    function getLatency(createdStr, updatedStr) {
-      if (!createdStr || !updatedStr) return '-';
-      const c = new Date(createdStr).getTime();
-      const u = new Date(updatedStr).getTime();
-      const diffMs = u - c;
-      if (isNaN(diffMs) || diffMs < 0) return '-';
-      if (diffMs < 1000) return `${diffMs}ms`;
-      return `${(diffMs / 1000).toFixed(2)}s`;
-    }
-
-    function inspectEvent(id) {
-      const e = cachedData.find(item => item.id === id);
-      if (!e) return;
-      const modal = document.getElementById('eventModal');
-      const body = document.getElementById('modalBody');
-
-      body.innerHTML = `
-        <div class="modal-grid">
-          <div class="modal-field">
-            <div class="modal-field-label">External Event ID</div>
-            <div class="modal-field-val mono" style="font-weight:700; color: var(--accent);">${escapeHtml(e.externalEventId)}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Current State</div>
-            <div class="modal-field-val"><span class="badge badge-${e.state}">${e.state}</span></div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Internal Store UUID</div>
-            <div class="modal-field-val mono" style="font-size:11.5px;">${escapeHtml(e.id)}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Webhook Source</div>
-            <div class="modal-field-val mono">${escapeHtml(e.source)}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Retry Attempts</div>
-            <div class="modal-field-val mono">${e.retryCount}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Next Retry At</div>
-            <div class="modal-field-val mono">${e.nextRetryAt ? formatDate(e.nextRetryAt) : 'None'}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Created At</div>
-            <div class="modal-field-val mono" style="font-size:11.5px;">${e.createdAt || '-'}</div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-field-label">Updated At</div>
-            <div class="modal-field-val mono" style="font-size:11.5px;">${e.updatedAt || '-'}</div>
-          </div>
-        </div>
-        ${e.failureReason ? `
-          <div style="margin-bottom:16px;">
-            <div class="modal-field-label" style="margin-bottom:6px; color:#dc2626;">Failure Exception Details</div>
-            <div style="background:rgba(220,38,38,0.08); border:1.5px solid rgba(220,38,38,0.3); padding:10px 14px; border-radius:8px; color:#dc2626; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;">
-              ${escapeHtml(e.failureReason)}
-            </div>
-          </div>
-        ` : ''}
-        <div>
-          <div class="modal-field-label" style="margin-bottom:6px;">Raw Database Record (JSON)</div>
-          <pre class="json-view" style="max-height:220px; border-radius:8px; border:1.5px solid var(--line);">${escapeHtml(JSON.stringify(e, null, 2))}</pre>
-        </div>
-      `;
-      modal.classList.add('open');
-    }
-
-    function closeModal() {
-      document.getElementById('eventModal').classList.remove('open');
-    }
-
-    function showToast(msg) {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      toast.className = 'toast';
-      toast.innerHTML = msg;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(10px)';
-        toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
-
-    async function clearStore() {
-      if (confirm("Reset event store database? This will clear all events for a fresh demo.")) {
-        await fetch('/events', { method: 'DELETE' });
-        knownEventStates.clear();
-        lastPayload = null;
-        fetchEvents();
-        showToast("🧹 Event store cleared and reset.");
-      }
-    }
-
-    function toggleView() {
-      isRawView = !isRawView;
-      document.getElementById('tableView').style.display = isRawView ? 'none' : 'block';
-      document.getElementById('rawView').style.display = isRawView ? 'block' : 'none';
-      document.getElementById('toggleBtn').textContent = isRawView ? 'Visual Table View' : 'Raw JSON View';
-      document.getElementById('toggleBtn').classList.toggle('btn-active', isRawView);
-    }
-
-    function togglePolling() {
-      isPaused = !isPaused;
-      const btn = document.getElementById('pauseBtn');
-      const status = document.getElementById('pollStatus');
-      if (isPaused) {
-        btn.textContent = '▶ Resume';
-        btn.classList.add('btn-active');
-        status.textContent = 'Auto-refresh: Paused';
-      } else {
-        btn.textContent = '⏸ Pause';
-        btn.classList.remove('btn-active');
-        status.textContent = 'Auto-refresh: 1s';
-        fetchEvents();
-      }
-    }
-
-    function formatDate(str) {
-      if (!str) return '-';
-      const d = new Date(str);
-      if (isNaN(d.getTime())) return '-';
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-
-    function escapeHtml(str) {
-      if (str === null || str === undefined) return '';
-      return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
-    }
-
-    setInterval(fetchEvents, 1000);
-    fetchEvents();
+  setInterval(fetchEvents, 1000);
+  fetchEvents();
 </script>
 </body>
 </html>
